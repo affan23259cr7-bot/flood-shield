@@ -3,31 +3,38 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Private Flood Shield - ระบบเตือนภัยส่วนตัว</title>
+    <title>ThaiShield - ระบบเตือนภัยพิบัติเรียลไทม์ส่วนตัว</title>
     <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; font-family: 'Sarabun', sans-serif; background: #f0f2f5; }
-        #map { height: 50vh; width: 100%; }
-        .panel { padding: 16px; background: #fff; border-radius: 20px 20px 0 0; margin-top: -20px; position: relative; box-shadow: 0 -4px 15px rgba(0,0,0,0.1); min-height: 40vh; }
-        .badge { display: inline-block; padding: 6px 14px; border-radius: 99px; color: #fff; font-weight: 700; font-size: 14px; margin-bottom: 10px; }
-        .card { background: #f8f9fa; border-radius: 12px; padding: 12px; margin: 8px 0; border-left: 4px solid #1565C0; font-size: 14px; }
-        h2 { margin: 0 0 10px 0; font-size: 18px; color: #333; }
-        ul { margin: 0; padding-left: 20px; font-size: 14px; color: #555; }
+        body { margin: 0; font-family: 'Sarabun', sans-serif; background: #f0f2f5; color: #333; }
+        #map { height: 45vh; width: 100%; }
+        .panel { padding: 16px; background: #fff; border-radius: 20px 20px 0 0; margin-top: -20px; position: relative; box-shadow: 0 -4px 15px rgba(0,0,0,0.1); min-height: 50vh; padding-bottom: 40px; }
+        .badge { display: inline-block; padding: 6px 14px; border-radius: 99px; color: #fff; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+        .card { background: #f8f9fa; border-radius: 10px; padding: 12px; margin: 8px 0; border-left: 4px solid #1565C0; font-size: 13.5px; }
+        h2 { margin: 0 0 8px 0; font-size: 18px; }
+        h3 { margin: 15px 0 8px 0; font-size: 15px; color: #1565C0; border-bottom: 2px solid #e0e0e0; padding-bottom: 4px; }
+        ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: #444; }
         li { margin-bottom: 4px; }
+        .tab-bar { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+        .tab-btn { background: #e0e0e0; border: none; padding: 6px 12px; border-radius: 8px; font-family: 'Sarabun'; font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .tab-btn.active { background: #1565C0; color: #fff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .sos-btn { display: block; width: 100%; background: #D32F2F; color: white; text-align: center; padding: 12px; border-radius: 10px; font-weight: bold; text-decoration: none; margin-top: 15px; font-size: 15px; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div class="panel" id="panel">
-    <h2>🛡️ กำลังโหลดข้อมูลภัยพิบัติรอบตัว...</h2>
-    <p>กรุณารอสักครู่ กำลังดึงพิกัดและข้อมูลระดับน้ำเรียลไทม์</p>
+    <h2>🛡️ กำลังประเมินสถานการณ์ภัยพิบัติรอบตัว...</h2>
+    <p>กำลังดึงพิกัด เรดาร์ฝน และระดับน้ำเรียลไทม์</p>
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
 <script>
-    // ตั้งค่าพิกัดบ้านของคุณ (ตัวอย่าง: บางเสาธง สมุทรปราการ)
+    // พิกัดบ้านของคุณ (ตั้งค่าเริ่มต้นที่ สมุทรปราการ / เปลี่ยนเป็นพิกัดของคุณได้)
     const MY_LAT = 13.6499812;
     const MY_LON = 100.7881746;
 
@@ -35,24 +42,24 @@
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
         center: [MY_LON, MY_LAT],
-        zoom: 12
+        zoom: 11
     });
 
-    // ปักหมุดบ้านของคุณ
+    // ปักหมุดบ้าน
     new maplibregl.Marker({color: '#D32F2F'})
         .setLngLat([MY_LON, MY_LAT])
         .setPopup(new maplibregl.Popup().setHTML('<b>📍 บ้านของฉัน</b>'))
         .addTo(map);
 
-    async function loadData() {
+    async function initSystem() {
         try {
-            // ดึงข้อมูลระดับน้ำจาก ThaiWater API ตรงผ่านเว็บ (CORS เปิดให้ใช้งานสาธารณะ)
+            // ดึงข้อมูลระดับน้ำและฝนจาก ThaiWater API
             const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
             const json = await res.json();
             const stations = json.data || [];
 
-            let nearbyHTML = '';
-            let count = 0;
+            let nearbyStations = '';
+            let maxWaterRatio = 0;
 
             stations.forEach(d => {
                 const stn = d.station || {};
@@ -60,20 +67,16 @@
                 const lon = stn.tele_station_long;
                 if (!lat || !lon) return;
 
-                // คำนวณระยะทางคร่าวๆ เป็นกิโลเมตรจากบ้าน
                 const dist = Math.sqrt(Math.pow(lat - MY_LAT, 2) + Math.pow(lon - MY_LON, 2)) * 111;
-                
-                if (dist <= 15 && count < 5) { // แสดงสถานีที่อยู่ในรัศมี 15 กม.
-                    count++;
+                if (dist <= 20) {
                     const name = (stn.tele_station_name || {}).th || 'สถานีวัดน้ำ';
-                    const waterVal = d.waterlevel_msl || d.value || 'ไม่ระบุ';
+                    const waterVal = d.waterlevel_msl || d.value || 0;
                     
-                    nearbyHTML += `<div class="card">
+                    nearbyStations += `<div class="card">
                         <b>📍 ${name}</b> (ห่าง ${dist.toFixed(1)} กม.)<br>
-                        ระดับน้ำ: <b>${waterVal}</b> เมตร (รทก.)
+                        ระดับน้ำ: <b>${waterVal}</b> ม. (รทก.)
                     </div>`;
 
-                    // ปักหมุดสถานีลงแผนที่
                     new maplibregl.Marker({color: '#0277BD'})
                         .setLngLat([lon, lat])
                         .setPopup(new maplibregl.Popup().setHTML(`<b>${name}</b><br>ระดับน้ำ: ${waterVal} ม.`))
@@ -81,24 +84,98 @@
                 }
             });
 
+            // จำลองระดับความเสี่ยง (ระดับ 1: เฝ้าระวัง, ระดับ 2: เตือนภัย, ระดับ 3: อพยพ)
+            const riskLevel = 1; // ปรับเปลี่ยนตามสถานการณ์จริงหรือเงื่อนไขฝนตกหนัก
+            const riskData = {
+                1: { title: "เฝ้าระวัง (ระดับ 1)", color: "#FFC107", actions: [
+                    "ชาร์จแบตมือถือและพาวเวอร์แบงก์ให้เต็มเสมอ",
+                    "สำรองน้ำดื่มสะอาด 3 ลิตร/คน/วัน และอาหารแห้ง 3 วัน",
+                    "ยกปลั๊กไฟ สิ่งของเครื่องใช้ขึ้นที่สูงพ้นน้ำ",
+                    "ติดตามเรดาร์ฝนและประกาศจากกรมอุตุนิยมวิทยาอย่างใกล้ชิด"
+                ]},
+                2: { title: "เตือนภัย (ระดับ 2)", color: "#FF6F00", actions: [
+                    "ย้ายรถยนต์และยานพาหนะไปจอดบนที่สูงทันที",
+                    "จัดเตรียมกระเป๋าฉุกเฉิน (ยา, เอกสารสำคัญ, ไฟฉาย, เงินสด)",
+                    "ปิดวาล์วแก๊สและเตรียมสับคัทเอาท์ไฟฟ้าเมื่อน้ำเริ่มเข้าบ้าน",
+                    "งดเดินทางผ่านเส้นทางน้ำหลากหรือจุดที่มีน้ำท่วมขัง"
+                ]},
+                3: { title: "อพยพทันที (ระดับ 3)", color: "#D32F2F", actions: [
+                    "อพยพไปยังศูนย์พักพิงหรือที่สูงตามเส้นทางปลอดภัยทันที",
+                    "ห้ามเดินลุยกระแสน้ำเชี่ยวกรากเด็ดขาด (น้ำสูง 60 ซม. พัดรถล้มได้)",
+                    "ตัดกระแสไฟหลักก่อนออกจากบ้าน",
+                    "โทรแจ้งขอความช่วยเหลือฉุกเฉินทันทีหากติดอยู่ในพื้นที่อันตราย"
+                ]}
+            };
+
+            const currentRisk = riskData[riskLevel];
+
+            // สร้าง HTML แดชบอร์ดหลัก
             document.getElementById('panel').innerHTML = `
-                <span class="badge" style="background: #FF6F00;">ระดับเฝ้าระวัง (ระดับ 1)</span>
-                <h2>พิกัดบ้านของคุณ (บางเสาธง)</h2>
-                <ul>
-                    <li>สถานะ: ปกติ ตรวจสอบความพร้อมรอบบ้าน</li>
-                    <li>ชาร์จแบตสำรอง / พาวเวอร์แบงก์ให้เต็ม</li>
-                    <li>ยกปลั๊กไฟและสิ่งของขึ้นที่สูง</li>
-                </ul>
-                <h3 style="margin-top:15px; font-size:16px;">🌊 สถานีวัดน้ำใกล้บ้าน (รัศมี 15 กม.)</h3>
-                ${nearbyHTML || '<p>ไม่พบสถานีวัดน้ำในรัศมีใกล้เคียง</p>'}
+                <span class="badge" style="background: ${currentRisk.color};">⚠️ ${currentRisk.title}</span>
+                <h2>ระบบเตือนภัยพื้นที่ของคุณ</h2>
+                
+                <div class="tab-bar">
+                    <button class="tab-btn active" onclick="switchTab(event, 'tab-action')">🛡️ สิ่งที่ต้องทำ</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'tab-water')">🌊 สถานีน้ำใกล้เคียง</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'tab-shelter')">🏠 ศูนย์พักพิง/ร้านค้า</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'tab-cctv')">📹 กล้อง CCTV</button>
+                </div>
+
+                <div id="tab-action" class="tab-content active">
+                    <h3>แนวทางปฏิบัติและรับมือ</h3>
+                    <ul>
+                        ${currentRisk.actions.map(a => `<li>${a}</li>`).join('')}
+                    </ul>
+                    <h3 style="margin-top:12px;">🌧️ เรดาร์และพยากรณ์อากาศ</h3>
+                    <div class="card">
+                        🌐 ตรวจสอบกลุ่มฝนเรียลไทม์ได้ที่: <a href="https://weather.tmd.go.th/" target="_blank">เรดาร์กรมอุตุนิยมวิทยา</a><br>
+                        💧 เช็กสถานการณ์น้ำภาพรวม: <a href="https://www.thaiwater.net/" target="_blank">สารสนเทศน้ำแห่งชาติ (สสน.)</a>
+                    </div>
+                </div>
+
+                <div id="tab-water" class="tab-content">
+                    <h3>สถานีวัดน้ำและแนวโน้ม (รัศมี 20 กม.)</h3>
+                    ${nearbyStations || '<p>ไม่พบสถานีในรัศมีใกล้เคียง</p>'}
+                </div>
+
+                <div id="tab-shelter" class="tab-content">
+                    <h3>ศูนย์พักพิงและร้านสะดวกซื้อเปิดให้บริการ</h3>
+                    <div class="card">
+                        <b>📍 ศูนย์พักพิงชั่วคราว (ตัวอย่างพื้นที่)</b><br>
+                        • ศาลาประชาคมอำเภอ / โรงเรียนประจำท้องถิ่น<br>
+                        • สิ่งอำนวยความสะดวก: ไฟฟ้าสำรอง / น้ำดื่ม / หน่วยแพทย์
+                    </div>
+                    <div class="card">
+                        <b>🏪 ร้านสะดวกซื้อ / ร้านค้าใกล้เคียง</b><br>
+                        • 7-Eleven สาขาใกล้บ้าน (เปิดให้บริการปกติ / สำรองเสบียงอาหารแห้ง)
+                    </div>
+                </div>
+
+                <div id="tab-cctv" class="tab-content">
+                    <h3>กล้อง CCTV สาธารณะ / จุดน้ำท่วม</h3>
+                    <div class="card">
+                        📹 ตรวจสอบภาพกล้องวงจรปิดสภาพจราจรและจุดน้ำท่วมขัง:<br>
+                        • กรุงเทพฯและปริมณฑล: <a href="http://www.bmatraffic.com/" target="_blank">สจส. กทม.</a><br>
+                        • ทางหลวงและถนนสายหลัก: <a href="http://www.highwaytraffic.go.th/" target="_blank">กรมทางหลวง</a>
+                    </div>
+                </div>
+
+                <a href="tel:1784" class="sos-btn">🆘 โทรสายด่วนฉุกเฉิน ปภ. (1784) หรือ 1669</a>
             `;
 
         } catch (e) {
-            document.getElementById('panel').innerHTML = `<h2>⚠️ ไม่สามารถโหลดข้อมูลได้</h2><p>กรุณาตรวจสอบอินเทอร์เน็ต</p>`;
+            document.getElementById('panel').innerHTML = `<h2>⚠️ ไม่สามารถเชื่อมต่อข้อมูลได้</h2><p>กรุณาตรวจสอบสัญญาณอินเทอร์เน็ต</p>`;
         }
     }
 
-    loadData();
+    function switchTab(evt, tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+        evt.currentTarget.classList.add('active');
+    }
+
+    initSystem();
 </script>
 
 </body>
